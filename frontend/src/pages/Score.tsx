@@ -45,9 +45,10 @@ export default function Score() {
       const result = await api.ai.score(company.id) as ESGScore;
       setScore(result);
     } catch (err) {
-      setError((err as Error).message);
+      setError((err as Error).message || 'Failed to calculate score. Please try again.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => { calculate(); }, [company]);

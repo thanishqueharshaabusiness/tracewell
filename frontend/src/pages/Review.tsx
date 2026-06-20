@@ -30,10 +30,12 @@ export default function Review() {
 
   useEffect(() => {
     if (!company) return;
-    api.fields.listByCompany(company.id).then((data) => {
-      setFields(data as ExtractedField[]);
-      setLoading(false);
-    });
+    api.fields.listByCompany(company.id)
+      .then((data) => {
+        setFields(data as ExtractedField[]);
+      })
+      .catch((err) => console.error('Failed to load fields:', err))
+      .finally(() => setLoading(false));
   }, [company]);
 
   const confirm = async (field: ExtractedField, newValue?: unknown) => {
