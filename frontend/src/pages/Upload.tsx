@@ -173,10 +173,25 @@ export default function Upload() {
             {existingDocs.map((doc) => (
               <div key={doc.id} className="flex items-center justify-between py-2 border-b border-sand last:border-0">
                 <span className="text-sm text-bark-brown">{doc.filename}</span>
-                <StatusBadge status={doc.parse_status as UploadItem['status']} />
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={doc.parse_status as UploadItem['status']} />
+                  <button
+                    onClick={async () => {
+                      await api.documents.delete(doc.id);
+                      setExistingDocs((prev) => prev.filter((d) => d.id !== doc.id));
+                    }}
+                    className="text-xs text-error-rust hover:underline ml-2"
+                    title="Delete document"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
             ))}
           </div>
+          <p className="text-xs text-taupe mt-3">
+            If a document shows ✓ Extracted but Review shows 0 fields, delete it and re-upload to reprocess.
+          </p>
         </div>
       )}
 

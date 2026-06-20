@@ -28,6 +28,7 @@ export const api = {
     },
     status: (documentId: string) => request(`/api/documents/status/${documentId}`),
     listByCompany: (companyId: string) => request(`/api/documents/company/${companyId}`),
+    delete: (documentId: string) => request(`/api/documents/${documentId}`, { method: 'DELETE' }),
   },
   fields: {
     listByCompany: (companyId: string) => request(`/api/fields/company/${companyId}`),
