@@ -13,6 +13,14 @@ interface UploadItem {
 }
 
 function StatusBadge({ status }: { status: UploadItem['status'] }) {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    if (status !== 'processing') { setElapsed(0); return; }
+    const t = setInterval(() => setElapsed((e) => e + 1), 1000);
+    return () => clearInterval(t);
+  }, [status]);
+
   const map = {
     queued: 'bg-sand text-taupe',
     uploading: 'bg-dusty-blue text-deep-blue',
@@ -20,9 +28,15 @@ function StatusBadge({ status }: { status: UploadItem['status'] }) {
     parsed: 'bg-moss-light text-forest',
     failed: 'bg-error-rust/20 text-error-rust',
   };
+
+  const label = status === 'processing'
+    ? `Extracting… ${elapsed > 5 ? `(${elapsed}s)` : ''}`
+    : status === 'parsed' ? '✓ Extracted'
+    : status.charAt(0).toUpperCase() + status.slice(1);
+
   return (
     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${map[status]}`}>
-      {status === 'processing' ? 'Extracting…' : status.charAt(0).toUpperCase() + status.slice(1)}
+      {label}
     </span>
   );
 }
@@ -39,22 +53,35 @@ export default function Upload() {
 
   const pollStatus = useCallback((documentId: string, idx: number) => {
     const interval = setInterval(async () => {
-      const data = await api.documents.status(documentId) as { parse_status: string };
-      if (data.parse_status === 'parsed' || data.parse_status === 'failed') {
-        clearInterval(interval);
-        setItems((prev) =>
-          prev.map((item, i) =>
-            i === idx ? { ...item, status: data.parse_status as UploadItem['status'] } : item
-          )
-        );
-        if (data.parse_status === 'parsed') {
-          setExistingDocs((prev) => [...prev]);
+      try {
+        const data = await api.documents.status(documentId) as { parse_status: string };
+        if (data.parse_status === 'parsed' || data.parse_status === 'failed') {
+          clearInterval(interval);
+          setItems((prev) =>
+            prev.map((item, i) =>
+              i === idx ? { ...item, status: data.parse_status as UploadItem['status'] } : item
+            )
+          );
+          if (data.parse_status === 'parsed') {
+            setExistingDocs((prev) => [...prev]);
+          }
         }
+      } catch {
+        // ignore transient poll errors, keep trying
       }
-    }, 2000);
+    }, 3000);
 
-    // 15s timeout
-    setTimeout(() => clearInterval(interval), 15000);
+    // 3 minute timeout — Claude can take 30-60s for large PDFs
+    setTimeout(() => {
+      clearInterval(interval);
+      setItems((prev) =>
+        prev.map((item, i) =>
+          i === idx && item.status === 'processing'
+            ? { ...item, status: 'failed' }
+            : item
+        )
+      );
+    }, 180000);
   }, []);
 
   const uploadFile = useCallback(async (file: File, idx: number) => {
