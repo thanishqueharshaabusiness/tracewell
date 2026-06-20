@@ -9,7 +9,27 @@ import aiRouter from './routes/ai';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173' }));
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://tracewell.vercel.app',
+  process.env.FRONTEND_URL,
+].filter(Boolean) as string[];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.some(o => origin.startsWith(o) || origin === o)) {
+      return callback(null, true);
+    }
+    // Also allow all vercel.app preview deployments for this project
+    if (origin.includes('tracewell') && origin.endsWith('.vercel.app')) {
+      return callback(null, true);
+    }
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
 app.use(express.json());
 
 app.use('/api/companies', companiesRouter);
