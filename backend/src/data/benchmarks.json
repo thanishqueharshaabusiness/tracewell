@@ -1,0 +1,158 @@
+{
+  "manufacturing": {
+    "small": {
+      "scope1Emissions": { "avg": 850, "min": 200, "max": 2500, "source": "mock" },
+      "scope2Emissions": { "avg": 620, "min": 150, "max": 1800, "source": "mock" },
+      "energyConsumption": { "avg": 4200, "min": 1000, "max": 12000, "source": "mock" },
+      "renewableEnergyPct": { "avg": 18, "min": 2, "max": 65, "source": "mock" },
+      "wasteGenerated": { "avg": 95, "min": 20, "max": 350, "source": "mock" },
+      "waterUse": { "avg": 2800, "min": 500, "max": 9000, "source": "mock" },
+      "genderDiversityPct": { "avg": 32, "min": 15, "max": 52, "source": "mock" },
+      "boardGenderDiversityPct": { "avg": 28, "min": 10, "max": 55, "source": "mock" },
+      "safetyIncidentRate": { "avg": 4.2, "min": 0.5, "max": 12.0, "source": "mock" },
+      "trainingHoursPerEmployee": { "avg": 18, "min": 4, "max": 45, "source": "mock" }
+    },
+    "medium": {
+      "scope1Emissions": { "avg": 2400, "min": 600, "max": 8000, "source": "mock" },
+      "scope2Emissions": { "avg": 1800, "min": 400, "max": 5500, "source": "mock" },
+      "energyConsumption": { "avg": 12500, "min": 3000, "max": 35000, "source": "mock" },
+      "renewableEnergyPct": { "avg": 22, "min": 5, "max": 70, "source": "mock" },
+      "wasteGenerated": { "avg": 280, "min": 60, "max": 900, "source": "mock" },
+      "waterUse": { "avg": 8500, "min": 1500, "max": 28000, "source": "mock" },
+      "genderDiversityPct": { "avg": 34, "min": 18, "max": 55, "source": "mock" },
+      "boardGenderDiversityPct": { "avg": 31, "min": 12, "max": 58, "source": "mock" },
+      "safetyIncidentRate": { "avg": 3.8, "min": 0.3, "max": 10.5, "source": "mock" },
+      "trainingHoursPerEmployee": { "avg": 22, "min": 6, "max": 55, "source": "mock" }
+    }
+  },
+  "technology": {
+    "small": {
+      "scope1Emissions": { "avg": 45, "min": 5, "max": 180, "source": "mock" },
+      "scope2Emissions": { "avg": 220, "min": 30, "max": 850, "source": "mock" },
+      "energyConsumption": { "avg": 980, "min": 120, "max": 3800, "source": "mock" },
+      "renewableEnergyPct": { "avg": 38, "min": 5, "max": 95, "source": "mock" },
+      "wasteGenerated": { "avg": 12, "min": 2, "max": 45, "source": "mock" },
+      "waterUse": { "avg": 280, "min": 40, "max": 900, "source": "mock" },
+      "genderDiversityPct": { "avg": 38, "min": 20, "max": 62, "source": "mock" },
+      "boardGenderDiversityPct": { "avg": 33, "min": 12, "max": 60, "source": "mock" },
+      "safetyIncidentRate": { "avg": 0.4, "min": 0.0, "max": 1.8, "source": "mock" },
+      "trainingHoursPerEmployee": { "avg": 32, "min": 8, "max": 80, "source": "mock" }
+    },
+    "medium": {
+      "scope1Emissions": { "avg": 120, "min": 15, "max": 500, "source": "mock" },
+      "scope2Emissions": { "avg": 680, "min": 80, "max": 2500, "source": "mock" },
+      "energyConsumption": { "avg": 2800, "min": 350, "max": 10000, "source": "mock" },
+      "renewableEnergyPct": { "avg": 45, "min": 8, "max": 100, "source": "mock" },
+      "wasteGenerated": { "avg": 35, "min": 5, "max": 130, "source": "mock" },
+      "waterUse": { "avg": 750, "min": 100, "max": 2500, "source": "mock" },
+      "genderDiversityPct": { "avg": 41, "min": 22, "max": 65, "source": "mock" },
+      "boardGenderDiversityPct": { "avg": 36, "min": 15, "max": 62, "source": "mock" },
+      "safetyIncidentRate": { "avg": 0.3, "min": 0.0, "max": 1.2, "source": "mock" },
+      "trainingHoursPerEmployee": { "avg": 40, "min": 12, "max": 100, "source": "mock" }
+    }
+  },
+  "retail": {
+    "small": {
+      "scope1Emissions": { "avg": 180, "min": 30, "max": 650, "source": "mock" },
+      "scope2Emissions": { "avg": 380, "min": 60, "max": 1200, "source": "mock" },
+      "energyConsumption": { "avg": 1800, "min": 300, "max": 6000, "source": "mock" },
+      "renewableEnergyPct": { "avg": 25, "min": 3, "max": 75, "source": "mock" },
+      "wasteGenerated": { "avg": 42, "min": 8, "max": 160, "source": "mock" },
+      "waterUse": { "avg": 850, "min": 120, "max": 3000, "source": "mock" },
+      "genderDiversityPct": { "avg": 52, "min": 35, "max": 70, "source": "mock" },
+      "boardGenderDiversityPct": { "avg": 35, "min": 12, "max": 62, "source": "mock" },
+      "safetyIncidentRate": { "avg": 2.1, "min": 0.2, "max": 7.5, "source": "mock" },
+      "trainingHoursPerEmployee": { "avg": 14, "min": 3, "max": 35, "source": "mock" }
+    },
+    "medium": {
+      "scope1Emissions": { "avg": 520, "min": 80, "max": 2000, "source": "mock" },
+      "scope2Emissions": { "avg": 1100, "min": 180, "max": 3800, "source": "mock" },
+      "energyConsumption": { "avg": 5200, "min": 800, "max": 18000, "source": "mock" },
+      "renewableEnergyPct": { "avg": 30, "min": 5, "max": 82, "source": "mock" },
+      "wasteGenerated": { "avg": 120, "min": 22, "max": 450, "source": "mock" },
+      "waterUse": { "avg": 2500, "min": 350, "max": 8500, "source": "mock" },
+      "genderDiversityPct": { "avg": 54, "min": 38, "max": 72, "source": "mock" },
+      "boardGenderDiversityPct": { "avg": 38, "min": 15, "max": 65, "source": "mock" },
+      "safetyIncidentRate": { "avg": 1.8, "min": 0.1, "max": 6.0, "source": "mock" },
+      "trainingHoursPerEmployee": { "avg": 18, "min": 4, "max": 42, "source": "mock" }
+    }
+  },
+  "professional_services": {
+    "small": {
+      "scope1Emissions": { "avg": 28, "min": 3, "max": 110, "source": "mock" },
+      "scope2Emissions": { "avg": 140, "min": 18, "max": 520, "source": "mock" },
+      "energyConsumption": { "avg": 620, "min": 80, "max": 2400, "source": "mock" },
+      "renewableEnergyPct": { "avg": 32, "min": 4, "max": 88, "source": "mock" },
+      "wasteGenerated": { "avg": 8, "min": 1, "max": 28, "source": "mock" },
+      "waterUse": { "avg": 160, "min": 22, "max": 550, "source": "mock" },
+      "genderDiversityPct": { "avg": 48, "min": 30, "max": 68, "source": "mock" },
+      "boardGenderDiversityPct": { "avg": 38, "min": 15, "max": 65, "source": "mock" },
+      "safetyIncidentRate": { "avg": 0.2, "min": 0.0, "max": 0.9, "source": "mock" },
+      "trainingHoursPerEmployee": { "avg": 28, "min": 6, "max": 70, "source": "mock" }
+    },
+    "medium": {
+      "scope1Emissions": { "avg": 75, "min": 8, "max": 320, "source": "mock" },
+      "scope2Emissions": { "avg": 420, "min": 55, "max": 1600, "source": "mock" },
+      "energyConsumption": { "avg": 1800, "min": 220, "max": 7000, "source": "mock" },
+      "renewableEnergyPct": { "avg": 38, "min": 6, "max": 92, "source": "mock" },
+      "wasteGenerated": { "avg": 22, "min": 3, "max": 80, "source": "mock" },
+      "waterUse": { "avg": 480, "min": 65, "max": 1600, "source": "mock" },
+      "genderDiversityPct": { "avg": 50, "min": 32, "max": 70, "source": "mock" },
+      "boardGenderDiversityPct": { "avg": 40, "min": 18, "max": 68, "source": "mock" },
+      "safetyIncidentRate": { "avg": 0.15, "min": 0.0, "max": 0.7, "source": "mock" },
+      "trainingHoursPerEmployee": { "avg": 35, "min": 8, "max": 85, "source": "mock" }
+    }
+  },
+  "construction": {
+    "small": {
+      "scope1Emissions": { "avg": 680, "min": 120, "max": 2200, "source": "mock" },
+      "scope2Emissions": { "avg": 180, "min": 25, "max": 650, "source": "mock" },
+      "energyConsumption": { "avg": 2800, "min": 450, "max": 9500, "source": "mock" },
+      "renewableEnergyPct": { "avg": 8, "min": 0, "max": 35, "source": "mock" },
+      "wasteGenerated": { "avg": 320, "min": 50, "max": 1200, "source": "mock" },
+      "waterUse": { "avg": 1800, "min": 250, "max": 6500, "source": "mock" },
+      "genderDiversityPct": { "avg": 18, "min": 5, "max": 38, "source": "mock" },
+      "boardGenderDiversityPct": { "avg": 20, "min": 5, "max": 45, "source": "mock" },
+      "safetyIncidentRate": { "avg": 6.5, "min": 1.0, "max": 18.0, "source": "mock" },
+      "trainingHoursPerEmployee": { "avg": 22, "min": 6, "max": 55, "source": "mock" }
+    },
+    "medium": {
+      "scope1Emissions": { "avg": 1900, "min": 350, "max": 6500, "source": "mock" },
+      "scope2Emissions": { "avg": 520, "min": 70, "max": 1900, "source": "mock" },
+      "energyConsumption": { "avg": 8500, "min": 1200, "max": 28000, "source": "mock" },
+      "renewableEnergyPct": { "avg": 10, "min": 0, "max": 42, "source": "mock" },
+      "wasteGenerated": { "avg": 950, "min": 150, "max": 3500, "source": "mock" },
+      "waterUse": { "avg": 5500, "min": 750, "max": 20000, "source": "mock" },
+      "genderDiversityPct": { "avg": 20, "min": 6, "max": 42, "source": "mock" },
+      "boardGenderDiversityPct": { "avg": 22, "min": 5, "max": 48, "source": "mock" },
+      "safetyIncidentRate": { "avg": 5.8, "min": 0.8, "max": 15.0, "source": "mock" },
+      "trainingHoursPerEmployee": { "avg": 28, "min": 8, "max": 65, "source": "mock" }
+    }
+  },
+  "healthcare": {
+    "small": {
+      "scope1Emissions": { "avg": 95, "min": 12, "max": 380, "source": "mock" },
+      "scope2Emissions": { "avg": 420, "min": 55, "max": 1500, "source": "mock" },
+      "energyConsumption": { "avg": 2200, "min": 280, "max": 8000, "source": "mock" },
+      "renewableEnergyPct": { "avg": 20, "min": 2, "max": 65, "source": "mock" },
+      "wasteGenerated": { "avg": 65, "min": 10, "max": 240, "source": "mock" },
+      "waterUse": { "avg": 3500, "min": 450, "max": 12000, "source": "mock" },
+      "genderDiversityPct": { "avg": 65, "min": 45, "max": 80, "source": "mock" },
+      "boardGenderDiversityPct": { "avg": 42, "min": 18, "max": 68, "source": "mock" },
+      "safetyIncidentRate": { "avg": 3.8, "min": 0.5, "max": 10.0, "source": "mock" },
+      "trainingHoursPerEmployee": { "avg": 35, "min": 8, "max": 80, "source": "mock" }
+    },
+    "medium": {
+      "scope1Emissions": { "avg": 280, "min": 35, "max": 1100, "source": "mock" },
+      "scope2Emissions": { "avg": 1250, "min": 160, "max": 4500, "source": "mock" },
+      "energyConsumption": { "avg": 6500, "min": 850, "max": 22000, "source": "mock" },
+      "renewableEnergyPct": { "avg": 24, "min": 3, "max": 72, "source": "mock" },
+      "wasteGenerated": { "avg": 190, "min": 28, "max": 720, "source": "mock" },
+      "waterUse": { "avg": 10500, "min": 1200, "max": 38000, "source": "mock" },
+      "genderDiversityPct": { "avg": 68, "min": 48, "max": 82, "source": "mock" },
+      "boardGenderDiversityPct": { "avg": 45, "min": 22, "max": 72, "source": "mock" },
+      "safetyIncidentRate": { "avg": 3.2, "min": 0.4, "max": 8.5, "source": "mock" },
+      "trainingHoursPerEmployee": { "avg": 42, "min": 10, "max": 95, "source": "mock" }
+    }
+  }
+}
