@@ -4,14 +4,30 @@ import { supabase } from '../services/supabase';
 const router = Router();
 
 router.get('/company/:companyId', async (req: Request, res: Response) => {
-  const { data, error } = await supabase
+  // Fetch fields without join (no FK constraint on document_id)
+  const { data: fields, error } = await supabase
     .from('extracted_fields')
-    .select('*, documents(filename)')
+    .select('*')
     .eq('company_id', req.params.companyId)
     .order('created_at', { ascending: false });
 
   if (error) { res.status(500).json({ error: error.message }); return; }
-  res.json(data || []);
+  if (!fields || fields.length === 0) { res.json([]); return; }
+
+  // Fetch document filenames separately and merge
+  const docIds = [...new Set(fields.map((f) => f.document_id))];
+  const { data: docs } = await supabase
+    .from('documents')
+    .select('id, filename')
+    .in('id', docIds);
+
+  const docMap = Object.fromEntries((docs || []).map((d) => [d.id, d]));
+  const merged = fields.map((f) => ({
+    ...f,
+    documents: docMap[f.document_id] ? { filename: docMap[f.document_id].filename } : null,
+  }));
+
+  res.json(merged);
 });
 
 router.patch('/:id/confirm', async (req: Request, res: Response) => {
