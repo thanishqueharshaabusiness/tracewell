@@ -42,8 +42,7 @@ export default function Benchmarks() {
         }
       }
       setUserFields(userMap);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    }).catch(console.error).finally(() => setLoading(false));
   }, [company]);
 
   if (!company) return <div className="max-w-xl mx-auto px-6 py-16 text-center text-taupe">No company selected.</div>;

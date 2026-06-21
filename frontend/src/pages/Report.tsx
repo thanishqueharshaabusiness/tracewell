@@ -32,8 +32,8 @@ export default function Report() {
       setEditedNarrative(n);
       setScore(sc as ESGScore);
       setFields((flds as ExtractedField[]).filter((f) => f.user_confirmed));
-      setLoading(false);
-    }).catch((err) => { setError(err.message); setLoading(false); });
+    }).catch((err) => setError(err.message || 'Failed to generate report'))
+      .finally(() => setLoading(false));
   }, [company]);
 
   const handleExport = () => {

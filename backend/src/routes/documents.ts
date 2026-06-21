@@ -6,14 +6,22 @@ import { supabase } from '../services/supabase';
 import { parseDocument, detectDiscrepancies } from '../services/documentParser';
 
 const router = Router();
-const upload = multer({ dest: '/tmp/tracewell-uploads/' });
+
+// Ensure upload dir exists
+const UPLOAD_DIR = '/tmp/tracewell-uploads';
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
+const upload = multer({ dest: UPLOAD_DIR });
 
 async function runParse(filePath: string, fileType: string, docId: string, companyId: string) {
+  console.log(`[parse] Starting parse for doc ${docId}, type=${fileType}`);
   try {
     const fields = await parseDocument(filePath, fileType, docId, companyId);
-    await detectDiscrepancies(companyId, fields, docId);
+    console.log(`[parse] Claude extracted ${fields.length} fields for doc ${docId}`);
 
     if (fields.length > 0) {
+      await detectDiscrepancies(companyId, fields, docId);
+
       const toInsert = fields.map((f) => ({
         document_id: docId,
         company_id: companyId,
@@ -28,18 +36,23 @@ async function runParse(filePath: string, fileType: string, docId: string, compa
         flagged_discrepancy: false,
       }));
 
-      const { error } = await supabase.from('extracted_fields').insert(toInsert);
-      if (error) {
-        console.error('Failed to insert extracted fields:', error);
+      const { error: insertError } = await supabase.from('extracted_fields').insert(toInsert);
+      if (insertError) {
+        console.error(`[parse] Insert error for doc ${docId}:`, insertError);
         await supabase.from('documents').update({ parse_status: 'failed' }).eq('id', docId);
         return;
       }
+      console.log(`[parse] Successfully saved ${fields.length} fields for doc ${docId}`);
+    } else {
+      console.log(`[parse] No fields extracted for doc ${docId} — marking parsed anyway`);
     }
 
     await supabase.from('documents').update({ parse_status: 'parsed' }).eq('id', docId);
   } catch (err) {
-    console.error('Parse error:', err);
+    console.error(`[parse] Fatal error for doc ${docId}:`, err);
     await supabase.from('documents').update({ parse_status: 'failed' }).eq('id', docId);
+  } finally {
+    try { if (fs.existsSync(filePath)) fs.unlinkSync(filePath); } catch {}
   }
 }
 
@@ -66,44 +79,15 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
     .single();
 
   if (docError || !doc) {
-    res.status(500).json({ error: 'Failed to create document record' });
+    console.error('[upload] Failed to create document record:', docError);
+    res.status(500).json({ error: docError?.message || 'Failed to create document record' });
     return;
   }
 
   res.json({ documentId: doc.id, status: 'processing' });
 
-  setImmediate(async () => {
-    await runParse(req.file!.path, fileType, doc.id, companyId);
-    try { fs.unlinkSync(req.file!.path); } catch {}
-  });
-});
-
-router.post('/reparse/:documentId', async (req: Request, res: Response) => {
-  const { documentId } = req.params;
-  const { companyId } = req.body;
-
-  const { data: doc } = await supabase
-    .from('documents')
-    .select('*')
-    .eq('id', documentId)
-    .single();
-
-  if (!doc) { res.status(404).json({ error: 'Document not found' }); return; }
-
-  // Delete existing fields for this document
-  await supabase.from('extracted_fields').delete().eq('document_id', documentId);
-  await supabase.from('documents').update({ parse_status: 'processing' }).eq('id', documentId);
-
-  res.json({ status: 'reprocessing' });
-
-  // Re-fetch file from storage_url if it still exists, otherwise fail gracefully
-  setImmediate(async () => {
-    if (fs.existsSync(doc.storage_url)) {
-      await runParse(doc.storage_url, doc.file_type, documentId, companyId || doc.company_id);
-    } else {
-      await supabase.from('documents').update({ parse_status: 'failed' }).eq('id', documentId);
-    }
-  });
+  // Parse in background
+  setImmediate(() => runParse(req.file!.path, fileType, doc.id, companyId));
 });
 
 router.get('/status/:documentId', async (req: Request, res: Response) => {
@@ -129,8 +113,27 @@ router.get('/company/:companyId', async (req: Request, res: Response) => {
 });
 
 router.delete('/:documentId', async (req: Request, res: Response) => {
-  await supabase.from('extracted_fields').delete().eq('document_id', req.params.documentId);
-  await supabase.from('documents').delete().eq('id', req.params.documentId);
+  const { documentId } = req.params;
+  console.log(`[delete] Deleting document ${documentId}`);
+
+  const { error: fieldsError } = await supabase
+    .from('extracted_fields')
+    .delete()
+    .eq('document_id', documentId);
+
+  if (fieldsError) console.error('[delete] Fields delete error:', fieldsError);
+
+  const { error: docError } = await supabase
+    .from('documents')
+    .delete()
+    .eq('id', documentId);
+
+  if (docError) {
+    console.error('[delete] Document delete error:', docError);
+    res.status(500).json({ error: docError.message });
+    return;
+  }
+
   res.json({ success: true });
 });
 

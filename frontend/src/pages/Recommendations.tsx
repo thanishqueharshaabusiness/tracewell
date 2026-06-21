@@ -30,8 +30,8 @@ export default function Recommendations() {
       const d = data as { items: Recommendation[]; statusMap: Record<string, string> };
       setRecs(d.items || []);
       setStatusMap(d.statusMap || {});
-      setLoading(false);
-    }).catch((err) => { setError(err.message); setLoading(false); });
+    }).catch((err) => setError(err.message || 'Failed to load recommendations'))
+      .finally(() => setLoading(false));
   }, [company]);
 
   const updateStatus = async (itemId: string, status: string) => {

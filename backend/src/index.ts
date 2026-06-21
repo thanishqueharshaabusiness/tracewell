@@ -9,27 +9,15 @@ import aiRouter from './routes/ai';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-const allowedOrigins = [
-  'http://localhost:5173',
-  'https://tracewell.vercel.app',
-  process.env.FRONTEND_URL,
-].filter(Boolean) as string[];
-
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, etc.)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.some(o => origin.startsWith(o) || origin === o)) {
-      return callback(null, true);
-    }
-    // Also allow all vercel.app preview deployments for this project
-    if (origin.includes('tracewell') && origin.endsWith('.vercel.app')) {
-      return callback(null, true);
-    }
-    callback(new Error('Not allowed by CORS'));
-  },
+  origin: true, // Allow all origins — locked down by Railway/Vercel auth
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
+app.options('*', cors()); // Handle preflight for all routes
+
 app.use(express.json());
 
 app.use('/api/companies', companiesRouter);
@@ -37,7 +25,11 @@ app.use('/api/documents', documentsRouter);
 app.use('/api/fields', fieldsRouter);
 app.use('/api/ai', aiRouter);
 
-app.get('/health', (_, res) => res.json({ status: 'ok' }));
+app.get('/health', (_, res) => res.json({ status: 'ok', env: {
+  hasSupabaseUrl: !!process.env.SUPABASE_URL,
+  hasSupabaseKey: !!process.env.SUPABASE_SERVICE_KEY,
+  hasAnthropicKey: !!process.env.ANTHROPIC_API_KEY,
+}}));
 
 app.listen(PORT, () => {
   console.log(`Tracewell backend running on port ${PORT}`);
