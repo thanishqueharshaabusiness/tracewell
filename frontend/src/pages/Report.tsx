@@ -1,198 +1,291 @@
 import { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 import { useApp } from '../context/AppContext';
-import { FIELD_LABELS, FIELD_UNITS, getFieldValue } from '../lib/types';
-import type { ExtractedField, ESGScore } from '../lib/types';
 
-interface Narrative {
-  strategy: string;
-  targets: string;
-  governance: string;
+interface CDPResponse {
+  id?: string;
+  question_code: string;
+  question_text: string;
+  questionCode?: string;
+  questionText?: string;
+  status: 'answered' | 'partial' | 'gap';
+  answer: string | null;
+  source_label?: string | null;
+  sourceLabel?: string | null;
+  confidence?: string | null;
+  gap_explanation?: string | null;
+  gapExplanation?: string | null;
+  user_edited?: boolean;
 }
+
+interface CDPResult {
+  responses: CDPResponse[];
+  fromCache: boolean;
+}
+
+const CDP_MODULES = [
+  { code: 'C0', name: 'Introduction' },
+  { code: 'C4', name: 'Emissions targets' },
+  { code: 'C5', name: 'Emissions methodology' },
+  { code: 'C6', name: 'Emissions data' },
+  { code: 'C7', name: 'Emissions breakdown' },
+  { code: 'C8', name: 'Energy' },
+  { code: 'C10', name: 'Verification' },
+  { code: 'C12', name: 'Value chain engagement' },
+  { code: 'C16', name: 'Sign off' },
+  { code: 'SC0', name: 'Supply chain introduction' },
+  { code: 'SC1', name: 'Allocating emissions to customers' },
+  { code: 'SC2', name: 'Collaborative opportunities' },
+];
+
+function normalize(r: CDPResponse) {
+  return {
+    code: r.question_code || r.questionCode || '',
+    text: r.question_text || r.questionText || '',
+    status: r.status,
+    answer: r.answer,
+    sourceLabel: r.source_label || r.sourceLabel || null,
+    confidence: r.confidence || null,
+    gapExplanation: r.gap_explanation || r.gapExplanation || null,
+    userEdited: r.user_edited || false,
+  };
+}
+
+const STATUS_STYLES = {
+  answered: { bg: 'bg-moss-light', text: 'text-forest', border: 'border-l-forest', label: '✓ Answered' },
+  partial: { bg: 'bg-dusty-blue', text: 'text-deep-blue', border: 'border-l-slate-blue', label: '◐ Partial' },
+  gap: { bg: 'bg-warning-clay/20', text: 'text-warning-clay', border: 'border-l-warning-clay', label: '⚠ Needs input' },
+};
 
 export default function Report() {
   const { company } = useApp();
-  const [narrative, setNarrative] = useState<Narrative | null>(null);
-  const [editedNarrative, setEditedNarrative] = useState<Narrative | null>(null);
-  const [score, setScore] = useState<ESGScore | null>(null);
-  const [fields, setFields] = useState<ExtractedField[]>([]);
+  const [responses, setResponses] = useState<ReturnType<typeof normalize>[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fromCache, setFromCache] = useState(false);
+  const [supplyChain, setSupplyChain] = useState(false);
+  const [editingCode, setEditingCode] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set(CDP_MODULES.map(m => m.code)));
 
-  useEffect(() => {
+  const loadCDP = async (forceRefresh = false) => {
     if (!company) return;
+    if (forceRefresh) await api.cdp.clearCache(company.id);
     setLoading(true);
-    Promise.all([
-      api.ai.reportNarrative(company.id),
-      api.ai.score(company.id),
-      api.fields.listByCompany(company.id),
-    ]).then(([narr, sc, flds]) => {
-      const n = narr as Narrative;
-      setNarrative(n);
-      setEditedNarrative(n);
-      setScore(sc as ESGScore);
-      setFields((flds as ExtractedField[]).filter((f) => f.user_confirmed));
-    }).catch((err) => setError(err.message || 'Failed to generate report'))
-      .finally(() => setLoading(false));
-  }, [company]);
-
-  const handleExport = () => {
-    if (!company || !score || !editedNarrative) return;
-    const content = buildReportText(company.name, score, fields, editedNarrative);
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${company.name.replace(/\s+/g, '-')}-ESG-Report.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    setError('');
+    try {
+      const result = await api.cdp.map(company.id, supplyChain) as CDPResult;
+      setResponses(result.responses.map(normalize));
+      setFromCache(result.fromCache);
+    } catch (err) {
+      setError((err as Error).message || 'Failed to generate CDP report');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (!company) return <div className="max-w-xl mx-auto px-6 py-16 text-center text-taupe">No company selected.</div>;
+  useEffect(() => { loadCDP(); }, [company, supplyChain]);
+
+  const saveEdit = async (code: string) => {
+    if (!company) return;
+    await api.cdp.updateAnswer(company.id, code, editValue);
+    setResponses((prev) => prev.map((r) =>
+      r.code === code ? { ...r, answer: editValue, status: 'answered' as const, userEdited: true } : r
+    ));
+    setEditingCode(null);
+  };
+
+  const toggleModule = (code: string) => {
+    setExpandedModules((prev) => {
+      const next = new Set(prev);
+      next.has(code) ? next.delete(code) : next.add(code);
+      return next;
+    });
+  };
+
+  const answered = responses.filter((r) => r.status === 'answered').length;
+  const partial = responses.filter((r) => r.status === 'partial').length;
+  const gaps = responses.filter((r) => r.status === 'gap').length;
+
+  if (!company) {
+    return <div className="max-w-xl mx-auto px-6 py-16 text-center text-taupe">No company selected.</div>;
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-12">
-      <div className="mb-8 flex items-center justify-between">
+      {/* Header */}
+      <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold text-bark-brown mb-2">ESG Report</h1>
-          <p className="text-taupe">{company.name} · {new Date().getFullYear()}</p>
+          <h1 className="text-3xl font-semibold text-bark-brown mb-1">CDP Climate Report</h1>
+          <p className="text-taupe text-sm">{company.name} · Minimum Questionnaire · Reporting Year {new Date().getFullYear() - 1}</p>
         </div>
-        <button onClick={handleExport} disabled={!narrative} className="btn-primary">
-          Export report
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {fromCache && (
+            <button onClick={() => loadCDP(true)} className="btn-secondary text-sm py-1.5">
+              ↻ Regenerate
+            </button>
+          )}
+          <a
+            href={api.cdp.pdfUrl(company.id)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-primary text-sm py-1.5"
+          >
+            Export PDF
+          </a>
+        </div>
       </div>
 
       {error && <div className="bg-error-rust/10 text-error-rust px-4 py-3 rounded-lg mb-6">{error}</div>}
 
+      {/* Supply chain toggle */}
+      <div className="card mb-6 flex items-center justify-between">
+        <div>
+          <p className="font-medium text-bark-brown text-sm">Responding to a customer's CDP Supply Chain request?</p>
+          <p className="text-taupe text-xs mt-0.5">Enables SC0, SC1, SC2 modules</p>
+        </div>
+        <button
+          onClick={() => setSupplyChain(!supplyChain)}
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${supplyChain ? 'bg-forest' : 'bg-sand'}`}
+        >
+          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${supplyChain ? 'translate-x-6' : 'translate-x-1'}`} />
+        </button>
+      </div>
+
       {loading && (
         <div className="card text-center py-16">
-          <div className="text-4xl mb-4 animate-pulse">📊</div>
-          <p className="text-taupe">Generating your ESG report narrative…</p>
+          <div className="text-4xl mb-4 animate-pulse">📋</div>
+          <p className="text-taupe font-medium mb-1">Mapping your ESG data to CDP questions…</p>
+          <p className="text-taupe text-sm">This takes 20–40 seconds. Claude is reviewing each question against your documents.</p>
         </div>
       )}
 
-      {!loading && score && (
-        <div className="space-y-6">
-          {/* Score summary */}
-          <div className="card">
-            <h2 className="font-semibold text-bark-brown mb-4">Score Summary</h2>
-            <div className="grid grid-cols-4 gap-4 text-center">
-              {[
-                { label: 'Overall', value: score.overall, color: 'text-forest' },
-                { label: 'Environmental', value: score.environmental, color: 'text-sage' },
-                { label: 'Social', value: score.social, color: 'text-clay' },
-                { label: 'Governance', value: score.governance, color: 'text-slate-blue' },
-              ].map((s) => (
-                <div key={s.label}>
-                  <div className={`text-3xl font-bold ${s.color}`}>{s.value}</div>
-                  <div className="text-xs text-taupe mt-1">{s.label}</div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 pt-4 border-t border-sand flex items-center justify-between">
-              <span className="text-sm text-taupe">Data quality</span>
-              <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                score.dataQualityScore >= 80 ? 'bg-moss-light text-forest' : 'bg-sand text-taupe'
-              }`}>
-                {score.dataQualityScore}% document-verified
+      {!loading && responses.length > 0 && (
+        <>
+          {/* Summary bar */}
+          <div className="card mb-8">
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div>
+                <div className="text-3xl font-bold text-forest">{answered}</div>
+                <div className="text-sm text-taupe mt-1">Answered from documents</div>
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-slate-blue">{partial}</div>
+                <div className="text-sm text-taupe mt-1">Partial data</div>
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-warning-clay">{gaps}</div>
+                <div className="text-sm text-taupe mt-1">Need additional input</div>
               </div>
             </div>
+            {fromCache && (
+              <p className="text-xs text-taupe text-center mt-4 pt-3 border-t border-sand">
+                Showing cached mapping · <button onClick={() => loadCDP(true)} className="text-forest underline">Regenerate</button> after confirming new fields
+              </p>
+            )}
           </div>
 
-          {/* Verified data with provenance */}
-          <div className="card">
-            <h2 className="font-semibold text-bark-brown mb-4">Verified Data</h2>
-            <p className="text-xs text-taupe mb-4">Every value below is traceable to a source document.</p>
-            <div className="space-y-2">
-              {fields.map((field) => (
-                <div key={field.id} className="flex items-start justify-between py-2 border-b border-sand last:border-0 gap-4">
-                  <div className="flex-1">
-                    <span className="text-sm font-medium text-bark-brown">{FIELD_LABELS[field.field_key] || field.field_key}</span>
-                    {field.extracted_quote && field.extracted_quote !== 'Manually entered' && (
-                      <p className="text-xs text-taupe mt-0.5 italic">"{field.extracted_quote}"</p>
-                    )}
-                    {field.page_reference && (
-                      <p className="text-xs text-taupe">{field.page_reference}</p>
-                    )}
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <span className="text-sm font-semibold text-bark-brown">
-                      {String(getFieldValue(field))} {field.unit || FIELD_UNITS[field.field_key] || ''}
-                    </span>
-                    <div className="flex items-center gap-1 justify-end mt-1">
-                      {field.source === 'document_parsed'
-                        ? <span className="badge-verified">Document-verified</span>
-                        : <span className="badge-self-reported">Self-reported</span>}
-                      <span className={`badge-${field.confidence}`}>{field.confidence}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {fields.length === 0 && (
-                <p className="text-taupe text-sm">No confirmed fields yet.</p>
-              )}
-            </div>
-          </div>
+          {/* Module accordion */}
+          {CDP_MODULES.map((module) => {
+            const moduleResponses = responses.filter((r) => r.code.startsWith(module.code));
+            if (moduleResponses.length === 0) return null;
+            const expanded = expandedModules.has(module.code);
+            const moduleAnswered = moduleResponses.filter((r) => r.status === 'answered').length;
+            const moduleGaps = moduleResponses.filter((r) => r.status === 'gap').length;
 
-          {/* Editable narrative */}
-          {editedNarrative && (
-            <div className="card">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="font-semibold text-bark-brown">Narrative</h2>
-                <span className="text-xs text-taupe italic">AI-generated · editable before export</span>
-              </div>
-              <div className="space-y-4">
-                {(['strategy', 'targets', 'governance'] as const).map((section) => (
-                  <div key={section}>
-                    <label className="label capitalize">{section}</label>
-                    <textarea
-                      className="input min-h-[100px] text-sm"
-                      value={editedNarrative[section]}
-                      onChange={(e) => setEditedNarrative((n) => n ? { ...n, [section]: e.target.value } : n)}
-                    />
+            return (
+              <div key={module.code} className="card mb-4 p-0 overflow-hidden">
+                <button
+                  onClick={() => toggleModule(module.code)}
+                  className="w-full flex items-center justify-between px-6 py-4 hover:bg-cream/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold text-bark-brown">{module.code}</span>
+                    <span className="text-taupe">—</span>
+                    <span className="font-medium text-bark-brown">{module.name}</span>
                   </div>
-                ))}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs bg-moss-light text-forest px-2 py-0.5 rounded-full">{moduleAnswered} answered</span>
+                    {moduleGaps > 0 && <span className="text-xs bg-warning-clay/20 text-warning-clay px-2 py-0.5 rounded-full">{moduleGaps} gaps</span>}
+                    <span className="text-taupe">{expanded ? '▲' : '▼'}</span>
+                  </div>
+                </button>
+
+                {expanded && (
+                  <div className="border-t border-sand divide-y divide-sand">
+                    {moduleResponses.map((r) => {
+                      const style = STATUS_STYLES[r.status] || STATUS_STYLES.gap;
+                      const isEditing = editingCode === r.code;
+
+                      return (
+                        <div key={r.code} className={`px-6 py-4 border-l-4 ${r.status === 'answered' ? 'border-l-forest' : r.status === 'partial' ? 'border-l-slate-blue' : 'border-l-warning-clay'}`}>
+                          <div className="flex items-start justify-between gap-3 mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-umber">{r.code}</span>
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${style.bg} ${style.text}`}>
+                                {style.label}
+                              </span>
+                              {r.userEdited && <span className="text-xs text-taupe italic">edited</span>}
+                            </div>
+                            <button
+                              onClick={() => {
+                                setEditingCode(r.code);
+                                setEditValue(r.answer || '');
+                              }}
+                              className="text-xs text-slate-blue underline flex-shrink-0"
+                            >
+                              {r.status === 'gap' ? 'Add answer' : 'Edit'}
+                            </button>
+                          </div>
+
+                          <p className="text-sm font-medium text-bark-brown mb-2">{r.text}</p>
+
+                          {isEditing ? (
+                            <div className="mt-2">
+                              <textarea
+                                className="input text-sm min-h-[80px] w-full"
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                placeholder="Enter your answer…"
+                              />
+                              <div className="flex gap-2 mt-2">
+                                <button onClick={() => saveEdit(r.code)} className="btn-primary text-sm py-1.5">Save</button>
+                                <button onClick={() => setEditingCode(null)} className="btn-secondary text-sm py-1.5">Cancel</button>
+                              </div>
+                            </div>
+                          ) : r.status === 'gap' ? (
+                            <div className="bg-cream rounded-lg px-3 py-2 mt-1">
+                              <p className="text-xs text-warning-clay font-medium mb-0.5">What's needed:</p>
+                              <p className="text-sm text-bark-brown">{r.gapExplanation || 'No data available for this question.'}</p>
+                            </div>
+                          ) : (
+                            <div>
+                              <p className="text-sm text-bark-brown leading-relaxed">{r.answer}</p>
+                              {r.sourceLabel && (
+                                <p className="text-xs text-taupe mt-1 italic">
+                                  Source: {r.sourceLabel}
+                                  {r.confidence && ` · ${r.confidence} confidence`}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })}
+        </>
+      )}
+
+      {!loading && responses.length === 0 && !error && (
+        <div className="card text-center py-12">
+          <p className="text-taupe mb-4">Calculate your ESG score first, then generate your CDP report.</p>
+          <a href="/score" className="btn-primary">Calculate score →</a>
         </div>
       )}
     </div>
   );
-}
-
-function buildReportText(companyName: string, score: ESGScore, fields: ExtractedField[], narrative: Narrative): string {
-  const lines = [
-    `ESG REPORT — ${companyName}`,
-    `Generated: ${new Date().toLocaleDateString()}`,
-    '',
-    '=== SCORES ===',
-    `Overall: ${score.overall}/100`,
-    `Environmental: ${score.environmental}/100`,
-    `Social: ${score.social}/100`,
-    `Governance: ${score.governance}/100`,
-    `Percentile rank: ~${score.percentileRank}th`,
-    `Data quality: ${score.dataQualityScore}% document-verified`,
-    '',
-    '=== VERIFIED DATA ===',
-    ...fields.map((f) => {
-      const val = getFieldValue(f);
-      const unit = f.unit || FIELD_UNITS[f.field_key] || '';
-      const src = f.source === 'document_parsed' ? 'Document-verified' : 'Self-reported';
-      const quote = f.extracted_quote && f.extracted_quote !== 'Manually entered'
-        ? `\n   Quote: "${f.extracted_quote}"` : '';
-      const page = f.page_reference ? `\n   ${f.page_reference}` : '';
-      return `${FIELD_LABELS[f.field_key] || f.field_key}: ${val} ${unit} [${src}, ${f.confidence} confidence]${quote}${page}`;
-    }),
-    '',
-    '=== STRATEGY ===',
-    narrative.strategy,
-    '',
-    '=== TARGETS ===',
-    narrative.targets,
-    '',
-    '=== GOVERNANCE ===',
-    narrative.governance,
-  ];
-  return lines.join('\n');
 }

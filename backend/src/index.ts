@@ -6,6 +6,7 @@ import documentsRouter from './routes/documents';
 import fieldsRouter from './routes/fields';
 import aiRouter from './routes/ai';
 import debugRouter from './routes/debug';
+import cdpRouter from './routes/cdp';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -26,6 +27,7 @@ app.use('/api/documents', documentsRouter);
 app.use('/api/fields', fieldsRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/debug', debugRouter);
+app.use('/api/cdp', cdpRouter);
 
 app.get('/health', (_, res) => res.json({ status: 'ok', env: {
   hasSupabaseUrl: !!process.env.SUPABASE_URL,

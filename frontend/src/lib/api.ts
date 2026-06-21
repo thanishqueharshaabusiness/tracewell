@@ -38,6 +38,15 @@ export const api = {
     addManual: (data: { companyId: string; fieldKey: string; value: unknown; unit?: string }) =>
       request('/api/fields/manual', { method: 'POST', body: JSON.stringify(data) }),
   },
+  cdp: {
+    map: (companyId: string, respondingToCustomerRequest = false) =>
+      request('/api/cdp/map', { method: 'POST', body: JSON.stringify({ companyId, respondingToCustomerRequest }) }),
+    updateAnswer: (companyId: string, questionCode: string, answer: string) =>
+      request(`/api/cdp/${companyId}/${questionCode}`, { method: 'PATCH', body: JSON.stringify({ answer }) }),
+    clearCache: (companyId: string) =>
+      request(`/api/cdp/cache/${companyId}`, { method: 'DELETE' }),
+    pdfUrl: (companyId: string) => `${API_URL}/api/cdp/pdf/${companyId}`,
+  },
   ai: {
     score: (companyId: string) =>
       request('/api/ai/score', { method: 'POST', body: JSON.stringify({ companyId }) }),

@@ -24,7 +24,12 @@ export default function Wizard() {
   useEffect(() => {
     if (!company) return;
     api.fields.listByCompany(company.id).then((data) => {
-      const covered = new Set((data as ExtractedField[]).map((f) => f.field_key));
+      // Only confirmed fields count as covered
+      const covered = new Set(
+        (data as ExtractedField[])
+          .filter((f) => f.user_confirmed)
+          .map((f) => f.field_key)
+      );
       setCoveredFields(covered);
     });
   }, [company]);

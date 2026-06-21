@@ -1,0 +1,111 @@
+{
+  "modules": [
+    {
+      "code": "C0",
+      "name": "Introduction",
+      "questions": [
+        { "code": "C0.1", "text": "Give a general description and introduction to your organization.", "answerType": "narrative", "dataMapping": "companyProfile.description" },
+        { "code": "C0.2", "text": "State the start and end date of the year for which you are reporting data.", "answerType": "fact", "dataMapping": "companyProfile.reportingPeriod" },
+        { "code": "C0.3", "text": "Select the countries/areas in which you operate.", "answerType": "fact", "dataMapping": "companyProfile.country" },
+        { "code": "C0.4", "text": "Select the currency used for all financial information disclosed throughout your response.", "answerType": "fact", "dataMapping": "companyProfile.currency" },
+        { "code": "C0.8", "text": "Does your organization have an ISIN code or another unique identifier (e.g., Ticker, CUSIP, etc.)?", "answerType": "fact", "dataMapping": null }
+      ]
+    },
+    {
+      "code": "C4",
+      "name": "Emissions targets",
+      "questions": [
+        { "code": "C4.1", "text": "Did you have an emissions target that was active in the reporting year?", "answerType": "fact", "dataMapping": null, "gapHint": "A formally adopted emissions reduction target (e.g., 'reduce Scope 1+2 emissions by X% by year Y'). Often set with help from a sustainability consultant or SBTi sector guidance." },
+        { "code": "C4.1c", "text": "Explain why you did not have an emissions target, and forecast how your emissions will change over the next five years.", "answerType": "narrative", "dataMapping": null, "conditionalOn": "C4.1=No" },
+        { "code": "C4.3", "text": "Did you have emissions reduction initiatives that were active within the reporting year?", "answerType": "fact", "dataMapping": null, "gapHint": "Specific projects like LED retrofits, renewable energy switching, or efficiency upgrades with tracked CO2e savings." },
+        { "code": "C4.3a", "text": "Identify the total number of initiatives at each stage of development, and the estimated CO2e savings.", "answerType": "table", "dataMapping": null },
+        { "code": "C4.3b", "text": "Provide details on the initiatives implemented in the reporting year.", "answerType": "table", "dataMapping": null },
+        { "code": "C4.3d", "text": "Why did you not have any emissions reduction initiatives active during the reporting year?", "answerType": "narrative", "dataMapping": null, "conditionalOn": "C4.3=No" }
+      ]
+    },
+    {
+      "code": "C5",
+      "name": "Emissions methodology",
+      "questions": [
+        { "code": "C5.2", "text": "Provide your base year and base year emissions.", "answerType": "fact", "dataMapping": "esgInputData.baseYear" },
+        { "code": "C5.3", "text": "Select the name of the standard, protocol, or methodology you have used to collect activity data and calculate emissions.", "answerType": "fact", "dataMapping": null, "defaultAnswer": "GHG Protocol Corporate Standard" }
+      ]
+    },
+    {
+      "code": "C6",
+      "name": "Emissions data",
+      "questions": [
+        { "code": "C6.1", "text": "What were your organization's gross global Scope 1 emissions in metric tons CO2e?", "answerType": "fact", "dataMapping": "esgInputData.scope1Emissions", "unit": "tCO2e" },
+        { "code": "C6.2", "text": "Describe your organization's approach to reporting Scope 2 emissions.", "answerType": "narrative", "dataMapping": "esgInputData.scope2Emissions", "defaultAnswer": "Location-based method, using grid average emission factors for the operating region." },
+        { "code": "C6.3", "text": "What were your organization's gross global Scope 2 emissions in metric tons CO2e?", "answerType": "fact", "dataMapping": "esgInputData.scope2Emissions", "unit": "tCO2e" },
+        { "code": "C6.5", "text": "Account for your organization's gross global Scope 3 emissions, disclosing and explaining any exclusions.", "answerType": "narrative", "dataMapping": null, "gapHint": "Scope 3 (supply chain) emissions data — typically estimated from spend-based or supplier-specific data. Most SMEs starting out exclude Scope 3 in year one and disclose that exclusion explicitly." },
+        { "code": "C6.10", "text": "Describe your gross global combined Scope 1 and 2 emissions for the reporting year in metric tons CO2e per unit currency total revenue.", "answerType": "calculated", "dataMapping": "scope1Emissions+scope2Emissions/revenue" }
+      ]
+    },
+    {
+      "code": "C7",
+      "name": "Emissions breakdown",
+      "questions": [
+        { "code": "C7.2", "text": "Break down your total gross global Scope 1 emissions by country/region.", "answerType": "table", "dataMapping": null, "gapHint": "Only required if you operate in more than one country/region." },
+        { "code": "C7.5", "text": "Break down your total gross global Scope 2 emissions by country/region.", "answerType": "table", "dataMapping": null, "gapHint": "Only required if you operate in more than one country/region." },
+        { "code": "C7.7", "text": "Is your organization able to break down your emission data for any subsidiaries included in your CDP response?", "answerType": "fact", "dataMapping": null }
+      ]
+    },
+    {
+      "code": "C8",
+      "name": "Energy",
+      "questions": [
+        { "code": "C8.1", "text": "What percentage of your total operational spend in the reporting year was on energy?", "answerType": "fact", "dataMapping": null },
+        { "code": "C8.2", "text": "Select which energy-related activities your organization has undertaken.", "answerType": "fact", "dataMapping": "esgInputData.energyConsumption" },
+        { "code": "C8.2a", "text": "Report your organization's energy consumption totals (excluding feedstocks) in MWh.", "answerType": "table", "dataMapping": "esgInputData.energyConsumption+renewableEnergyPct", "validationNote": "Renewable + non-renewable MWh must equal total energy consumption MWh." }
+      ]
+    },
+    {
+      "code": "C10",
+      "name": "Verification",
+      "questions": [
+        { "code": "C10.1", "text": "Indicate the verification/assurance status that applies to your reported emissions.", "answerType": "fact", "dataMapping": null, "defaultAnswer": "No third-party assurance or verification obtained for the reporting year." }
+      ]
+    },
+    {
+      "code": "C12",
+      "name": "Value chain engagement",
+      "questions": [
+        { "code": "C12.1", "text": "Do you engage with your value chain on climate-related issues?", "answerType": "fact", "dataMapping": null },
+        { "code": "C12.1a", "text": "Provide details of your climate-related supplier engagement strategy.", "answerType": "narrative", "dataMapping": null, "gapHint": "A documented approach to discussing emissions/climate practices with key suppliers. Often doesn't exist yet for early-stage SME reporting." }
+      ]
+    },
+    {
+      "code": "C16",
+      "name": "Sign off",
+      "questions": [
+        { "code": "C16.1", "text": "Provide details for the person that has signed off (approved) your CDP climate change response.", "answerType": "userInput", "dataMapping": null, "neverAutoGenerate": true }
+      ]
+    },
+    {
+      "code": "SC0",
+      "name": "Supply chain introduction",
+      "conditionalModule": "respondingToCustomerRequest",
+      "questions": [
+        { "code": "SC0.1", "text": "What is your company's annual revenue for the stated reporting period?", "answerType": "fact", "dataMapping": "companyProfile.revenue", "confidential": true }
+      ]
+    },
+    {
+      "code": "SC1",
+      "name": "Allocating your emissions to customers",
+      "conditionalModule": "respondingToCustomerRequest",
+      "questions": [
+        { "code": "SC1.1", "text": "Allocate your emissions to your customers listed below according to the goods or services you have sold them in this reporting period.", "answerType": "table", "dataMapping": null }
+      ]
+    },
+    {
+      "code": "SC2",
+      "name": "Collaborative opportunities",
+      "conditionalModule": "respondingToCustomerRequest",
+      "questions": [
+        { "code": "SC2.1", "text": "Please propose any mutually beneficial climate-related projects you could collaborate on with specific CDP Supply Chain members.", "answerType": "narrative", "dataMapping": null },
+        { "code": "SC2.2", "text": "Have requests or initiatives by CDP Supply Chain members prompted your organization to undertake organizational-level emissions reduction initiatives?", "answerType": "fact", "dataMapping": null }
+      ]
+    }
+  ]
+}
