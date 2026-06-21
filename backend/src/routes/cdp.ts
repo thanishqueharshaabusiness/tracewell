@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { supabase } from '../services/supabase';
 import { callClaude } from '../services/claude';
+import { getLatestSessionId, getLatestSessionDocumentIds } from '../services/session';
 import cdpQuestions from '../data/cdpQuestions.json';
 
 const router = Router();
@@ -57,7 +58,8 @@ router.post('/map', async (req: Request, res: Response) => {
   const { companyId, respondingToCustomerRequest = false } = req.body;
   if (!companyId) { res.status(400).json({ error: 'companyId required' }); return; }
 
-  // Check cache
+  // Check cache — only use if session matches
+  const sessionId = await getLatestSessionId(companyId);
   const { data: cached } = await supabase
     .from('cdp_responses')
     .select('*')
@@ -65,18 +67,45 @@ router.post('/map', async (req: Request, res: Response) => {
     .order('created_at', { ascending: false });
 
   if (cached && cached.length > 0) {
-    res.json({ responses: cached, fromCache: true });
-    return;
+    const cacheSession = (cached[0] as Record<string, unknown>).session_id;
+    if (!cacheSession || cacheSession === sessionId) {
+      console.log(`[cdp] Returning ${cached.length} cached responses for session=${sessionId}`);
+      res.json({ responses: cached, fromCache: true });
+      return;
+    }
+    // Session changed — clear stale cache
+    console.log(`[cdp] Session changed (${cacheSession} → ${sessionId}), clearing CDP cache`);
+    await supabase.from('cdp_responses').delete().eq('company_id', companyId);
   }
 
-  const [companyRes, fieldsRes] = await Promise.all([
-    supabase.from('companies').select('*').eq('id', companyId).single(),
-    supabase.from('extracted_fields').select('*').eq('company_id', companyId).eq('user_confirmed', true),
-  ]);
+  const currentSessionId = await getLatestSessionId(companyId);
+  const docIds = currentSessionId ? await getLatestSessionDocumentIds(companyId) : [];
 
+  console.log(`[cdp] company=${companyId} session=${currentSessionId} docIds=${docIds.length}`);
+
+  const companyRes = await supabase.from('companies').select('*').eq('id', companyId).single();
   if (companyRes.error) { res.status(404).json({ error: 'Company not found' }); return; }
   const company = companyRes.data;
-  const fields = fieldsRes.data || [];
+
+  // Scope fields to current session only
+  let fieldsQuery = supabase
+    .from('extracted_fields')
+    .select('*')
+    .eq('company_id', companyId)
+    .eq('user_confirmed', true);
+
+  if (docIds.length > 0) {
+    fieldsQuery = supabase
+      .from('extracted_fields')
+      .select('*')
+      .eq('company_id', companyId)
+      .eq('user_confirmed', true)
+      .or(`document_id.in.(${docIds.join(',')}),source.eq.self_reported`);
+  }
+
+  const { data: fieldsData } = await fieldsQuery;
+  const fields = fieldsData || [];
+  console.log(`[cdp] ${fields.length} confirmed fields for CDP mapping`);
 
   const fieldsSummary = fields.map((f) => ({
     fieldKey: f.field_key,
@@ -133,6 +162,7 @@ ${JSON.stringify(applicableModules, null, 2)}`;
       confidence: r.confidence || null,
       gap_explanation: r.gapExplanation || null,
       user_edited: false,
+      session_id: currentSessionId,
     }));
 
     await supabase.from('cdp_responses').upsert(toInsert, { onConflict: 'company_id,question_code' });

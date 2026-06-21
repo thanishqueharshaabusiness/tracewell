@@ -1,25 +1,53 @@
 import { Router, Request, Response } from 'express';
 import { supabase } from '../services/supabase';
+import { getLatestSessionDocumentIds } from '../services/session';
 
 const router = Router();
 
 router.get('/company/:companyId', async (req: Request, res: Response) => {
-  // Fetch fields without join (no FK constraint on document_id)
-  const { data: fields, error } = await supabase
+  const companyId = req.params['companyId'] as string;
+  console.log(`[fields] Fetching for company=${companyId}`);
+
+  // Scope to latest session's documents only
+  const docIds = await getLatestSessionDocumentIds(companyId);
+  console.log(`[fields] Latest session has ${docIds.length} documents`);
+
+  let query = supabase
     .from('extracted_fields')
     .select('*')
-    .eq('company_id', req.params.companyId)
+    .eq('company_id', companyId)
     .order('created_at', { ascending: false });
 
-  if (error) { res.status(500).json({ error: error.message }); return; }
-  if (!fields || fields.length === 0) { res.json([]); return; }
+  // If we have session documents, filter to them (plus self-reported which have no session)
+  if (docIds.length > 0) {
+    const idList = docIds.join(',');
+    query = supabase
+      .from('extracted_fields')
+      .select('*')
+      .eq('company_id', companyId)
+      .or(`document_id.in.(${idList}),source.eq.self_reported`)
+      .order('created_at', { ascending: false });
+  }
 
-  // Fetch document filenames separately and merge
-  const docIds = [...new Set(fields.map((f) => f.document_id))];
+  const { data: fields, error } = await query;
+  if (error) {
+    console.error(`[fields] Query error:`, error.message);
+    res.status(500).json({ error: error.message });
+    return;
+  }
+
+  if (!fields || fields.length === 0) {
+    console.log(`[fields] 0 fields found for company=${companyId}`);
+    res.json([]);
+    return;
+  }
+
+  // Fetch document filenames separately (no FK join)
+  const allDocIds = [...new Set(fields.map((f) => f.document_id))].filter(Boolean);
   const { data: docs } = await supabase
     .from('documents')
     .select('id, filename')
-    .in('id', docIds);
+    .in('id', allDocIds);
 
   const docMap = Object.fromEntries((docs || []).map((d) => [d.id, d]));
   const merged = fields.map((f) => ({
@@ -27,6 +55,7 @@ router.get('/company/:companyId', async (req: Request, res: Response) => {
     documents: docMap[f.document_id] ? { filename: docMap[f.document_id].filename } : null,
   }));
 
+  console.log(`[fields] Returning ${merged.length} fields for company=${companyId}`);
   res.json(merged);
 });
 

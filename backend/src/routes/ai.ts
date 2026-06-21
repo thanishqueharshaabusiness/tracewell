@@ -1,34 +1,75 @@
 import { Router, Request, Response } from 'express';
-import { callClaude, streamClaude } from '../services/claude';
+import { callClaude } from '../services/claude';
 import { supabase } from '../services/supabase';
 import { calculateESGScore } from '../services/scoring';
+import { getLatestSessionDocumentIds, getLatestSessionId } from '../services/session';
 import { ESGInputData, ExtractedField } from '../types';
 
 const router = Router();
+
+/**
+ * Fetches confirmed extracted fields scoped to the latest session for a company.
+ * Includes self-reported fields (no session dependency).
+ * Logs company_id and session for audit.
+ */
+async function getScopedFields(companyId: string): Promise<ExtractedField[]> {
+  const sessionId = await getLatestSessionId(companyId);
+  const docIds = sessionId ? await getLatestSessionDocumentIds(companyId) : [];
+
+  console.log(`[scope] company=${companyId} session=${sessionId} docIds=${docIds.length}`);
+
+  let query;
+  if (docIds.length > 0) {
+    query = supabase
+      .from('extracted_fields')
+      .select('*')
+      .eq('company_id', companyId)
+      .or(`document_id.in.(${docIds.join(',')}),source.eq.self_reported`);
+  } else {
+    query = supabase
+      .from('extracted_fields')
+      .select('*')
+      .eq('company_id', companyId);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error(`[scope] Error fetching fields for company=${companyId}:`, error.message);
+    return [];
+  }
+
+  const fields = (data || []).map((f) => ({ ...f, value: f.value?.v ?? f.value }));
+  console.log(`[scope] Found ${fields.length} total, ${fields.filter((f: ExtractedField) => f.userConfirmed).length} confirmed`);
+  return fields;
+}
 
 router.post('/score', async (req: Request, res: Response) => {
   const { companyId } = req.body;
   if (!companyId) { res.status(400).json({ error: 'companyId required' }); return; }
 
-  const [companyRes, fieldsRes, cachedRes] = await Promise.all([
+  const [companyRes, sessionId] = await Promise.all([
     supabase.from('companies').select('*').eq('id', companyId).single(),
-    supabase.from('extracted_fields').select('*').eq('company_id', companyId),
-    supabase.from('esg_scores').select('*').eq('company_id', companyId).order('created_at', { ascending: false }).limit(1),
+    getLatestSessionId(companyId),
   ]);
 
   if (companyRes.error) { res.status(404).json({ error: 'Company not found' }); return; }
   const company = companyRes.data;
-  const fields: ExtractedField[] = (fieldsRes.data || []).map((f) => ({
-    ...f,
-    value: f.value?.v ?? f.value,
-  }));
 
-  // Build ESGInputData from confirmed fields
+  console.log(`[score] company=${companyId} (${company.name}) session=${sessionId}`);
+
+  const fields = await getScopedFields(companyId);
+
+  // Build ESGInputData from confirmed fields only
   const data: Partial<ESGInputData> = {};
   for (const field of fields) {
-    if (field.source === 'document_parsed' && !field.userConfirmed) continue;
-    (data as Record<string, unknown>)[field.fieldKey] = field.value;
+    const f = field as unknown as Record<string, unknown>;
+    const isConfirmed = f.user_confirmed ?? f.userConfirmed;
+    const source = f.source as string;
+    if (source === 'document_parsed' && !isConfirmed) continue;
+    (data as Record<string, unknown>)[f.field_key as string ?? f.fieldKey as string] = f.value;
   }
+
+  console.log(`[score] Building score from ${Object.keys(data).length} confirmed fields`);
 
   const scoreResult = calculateESGScore({
     data,
@@ -37,19 +78,25 @@ router.post('/score', async (req: Request, res: Response) => {
     size: company.size,
   });
 
-  // Check cache — don't re-call Claude if score is same
-  const cached = cachedRes.data?.[0];
-  if (cached && Math.abs(cached.scores?.overall - scoreResult.overall) < 1) {
+  // Invalidate cache when session changes — always recalculate
+  const { data: cached } = await supabase
+    .from('esg_scores')
+    .select('*')
+    .eq('company_id', companyId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (cached && Math.abs(cached.scores?.overall - scoreResult.overall) < 1 && cached.scores?.sessionId === sessionId) {
+    console.log(`[score] Returning cached score for session=${sessionId}`);
     res.json({ ...cached.scores, interpretation: cached.interpretation });
     return;
   }
 
-  // Generate interpretation
-  const eAvg = 50; const sAvg = 50; const gAvg = 50;
   const interpretPrompt = `Company: ${company.name}, ${company.industry}, ${company.size} employees, ${company.country}
-ESG Scores: E ${scoreResult.environmental}/100 (sector avg ~${eAvg}), S ${scoreResult.social}/100 (sector avg ~${sAvg}), G ${scoreResult.governance}/100 (sector avg ~${gAvg})
+ESG Scores: E ${scoreResult.environmental}/100, S ${scoreResult.social}/100, G ${scoreResult.governance}/100
 Overall: ${scoreResult.overall}/100, ~${scoreResult.percentileRank}th percentile
-Data quality: ${scoreResult.dataQualityScore}% of inputs are document-verified
+Data quality: ${scoreResult.dataQualityScore}% document-verified
 Top gaps: ${scoreResult.gaps.slice(0, 3).join(', ')}
 
 Write a 3-paragraph interpretation, one per pillar (Environmental, Social, Governance), 2-3 sentences each, pillar name bolded at the start. Be direct. If data quality is below 60%, note that the score reliability is provisional.`;
@@ -57,10 +104,10 @@ Write a 3-paragraph interpretation, one per pillar (Environmental, Social, Gover
   const interpretation = await callClaude('You are an ESG analyst writing concise score interpretations.', interpretPrompt);
   scoreResult.interpretation = interpretation;
 
-  // Cache
+  // Store with session reference so cache invalidates on new session
   await supabase.from('esg_scores').insert({
     company_id: companyId,
-    scores: scoreResult,
+    scores: { ...scoreResult, sessionId },
     interpretation,
     data_quality_score: scoreResult.dataQualityScore,
   });
@@ -72,18 +119,30 @@ router.post('/recommendations', async (req: Request, res: Response) => {
   const { companyId } = req.body;
   if (!companyId) { res.status(400).json({ error: 'companyId required' }); return; }
 
-  const [companyRes, scoreRes, cachedRes] = await Promise.all([
+  const [companyRes, scoreRes] = await Promise.all([
     supabase.from('companies').select('*').eq('id', companyId).single(),
     supabase.from('esg_scores').select('*').eq('company_id', companyId).order('created_at', { ascending: false }).limit(1),
-    supabase.from('recommendations').select('*').eq('company_id', companyId).order('created_at', { ascending: false }).limit(1),
   ]);
 
   if (companyRes.error) { res.status(404).json({ error: 'Company not found' }); return; }
   const company = companyRes.data;
   const scores = scoreRes.data?.[0]?.scores;
+  const sessionId = await getLatestSessionId(companyId);
 
-  if (cachedRes.data?.[0] && scores) {
-    res.json({ items: cachedRes.data[0].items, statusMap: cachedRes.data[0].status_map });
+  console.log(`[recs] company=${companyId} (${company.name}) session=${sessionId}`);
+
+  // Check cache only if session matches
+  const { data: cachedRec } = await supabase
+    .from('recommendations')
+    .select('*')
+    .eq('company_id', companyId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (cachedRec && (cachedRec as Record<string, unknown>).session_id === sessionId) {
+    console.log(`[recs] Returning cached recommendations for session=${sessionId}`);
+    res.json({ items: cachedRec.items, statusMap: cachedRec.status_map });
     return;
   }
 
@@ -103,7 +162,7 @@ Prioritize by impact-to-difficulty ratio. Be specific to their industry. JSON on
   if (!jsonMatch) { res.status(500).json({ error: 'Failed to parse recommendations' }); return; }
 
   const items = JSON.parse(jsonMatch[0]).map((r: Record<string, unknown>, i: number) => ({ ...r, id: String(i + 1), status: 'pending' }));
-  await supabase.from('recommendations').insert({ company_id: companyId, items, status_map: {} });
+  await supabase.from('recommendations').insert({ company_id: companyId, items, status_map: {}, session_id: sessionId });
 
   res.json({ items, statusMap: {} });
 });
@@ -123,46 +182,6 @@ router.patch('/recommendations/:companyId/status', async (req: Request, res: Res
   const statusMap = { ...existing.status_map, [itemId]: status };
   await supabase.from('recommendations').update({ status_map: statusMap }).eq('id', existing.id);
   res.json({ statusMap });
-});
-
-router.post('/report-narrative', async (req: Request, res: Response) => {
-  const { companyId } = req.body;
-  if (!companyId) { res.status(400).json({ error: 'companyId required' }); return; }
-
-  const [companyRes, scoreRes, fieldsRes] = await Promise.all([
-    supabase.from('companies').select('*').eq('id', companyId).single(),
-    supabase.from('esg_scores').select('*').eq('company_id', companyId).order('created_at', { ascending: false }).limit(1),
-    supabase.from('extracted_fields').select('*').eq('company_id', companyId),
-  ]);
-
-  const company = companyRes.data;
-  const scores = scoreRes.data?.[0]?.scores;
-  const fields = fieldsRes.data || [];
-
-  const fieldsSummary = fields
-    .filter((f) => f.user_confirmed)
-    .slice(0, 10)
-    .map((f) => `${f.field_key}: ${f.value?.v ?? f.value} ${f.unit || ''} (${f.confidence} confidence)`)
-    .join('\n');
-
-  const prompt = `Company: ${company?.name}, ${company?.industry}, ${company?.size} employees, ${company?.country}
-ESG Scores: E ${scores?.environmental}/100, S ${scores?.social}/100, G ${scores?.governance}/100
-Verified data points:
-${fieldsSummary}
-
-Generate report narrative sections as JSON:
-{
-  "strategy": "200-word paragraph describing ESG strategy",
-  "targets": "150-word paragraph describing measurable targets",
-  "governance": "150-word paragraph describing governance approach"
-}
-Ground the narrative in the actual data provided. JSON only.`;
-
-  const raw = await callClaude('You are an ESG report writer. Return only valid JSON.', prompt);
-  const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) { res.status(500).json({ error: 'Failed to parse narrative' }); return; }
-
-  res.json(JSON.parse(jsonMatch[0]));
 });
 
 router.get('/benchmarks/:industry/:size', (req: Request, res: Response) => {

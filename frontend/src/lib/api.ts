@@ -20,12 +20,16 @@ export const api = {
     listByUser: (userId: string) => request(`/api/companies/user/${userId}`),
   },
   documents: {
-    upload: (companyId: string, file: File) => {
+    upload: (companyId: string, file: File, sessionId: string) => {
       const form = new FormData();
       form.append('companyId', companyId);
+      form.append('sessionId', sessionId);
       form.append('file', file);
       return fetch(`${API_URL}/api/documents/upload`, { method: 'POST', body: form }).then((r) => r.json());
     },
+    newSession: () => request('/api/documents/new-session', { method: 'POST' }),
+    reset: (companyId: string) => request(`/api/documents/reset/${companyId}`, { method: 'DELETE' }),
+    sessions: (companyId: string) => request(`/api/documents/sessions/${companyId}`),
     status: (documentId: string) => request(`/api/documents/status/${documentId}`),
     listByCompany: (companyId: string) => request(`/api/documents/company/${companyId}`),
     delete: (documentId: string) => request(`/api/documents/${documentId}`, { method: 'DELETE' }),

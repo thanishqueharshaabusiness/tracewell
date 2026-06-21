@@ -26,7 +26,7 @@ export async function callClaude(
 
   const response = await anthropic.messages.create(params);
 
-  const textBlock = response.content.find((b) => b.type === 'text');
+  const textBlock = response.content.find((b) => b.type === 'text') as { type: 'text'; text: string } | undefined;
   return textBlock ? textBlock.text : '';
 }
 
