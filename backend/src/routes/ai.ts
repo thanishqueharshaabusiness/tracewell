@@ -38,8 +38,14 @@ async function getScopedFields(companyId: string): Promise<ExtractedField[]> {
     return [];
   }
 
-  const fields = (data || []).map((f) => ({ ...f, value: f.value?.v ?? f.value }));
-  console.log(`[scope] Found ${fields.length} total, ${fields.filter((f: ExtractedField) => f.userConfirmed).length} confirmed`);
+  // Normalize to the camelCase shape scoring.ts expects (DB is snake_case)
+  const fields = (data || []).map((f) => ({
+    ...f,
+    value: f.value?.v ?? f.value,
+    fieldKey: f.field_key,
+    userConfirmed: f.user_confirmed,
+  })) as unknown as ExtractedField[];
+  console.log(`[scope] Found ${fields.length} total, ${fields.filter((f) => f.userConfirmed).length} confirmed`);
   return fields;
 }
 
@@ -63,13 +69,14 @@ router.post('/score', async (req: Request, res: Response) => {
   const data: Partial<ESGInputData> = {};
   for (const field of fields) {
     const f = field as unknown as Record<string, unknown>;
-    const isConfirmed = f.user_confirmed ?? f.userConfirmed;
-    const source = f.source as string;
-    if (source === 'document_parsed' && !isConfirmed) continue;
-    (data as Record<string, unknown>)[f.field_key as string ?? f.fieldKey as string] = f.value;
+    // Document-parsed fields contribute provisionally even before confirmation
+    // (scoring.ts down-weights unconfirmed fields to 0.7). Only truly empty values are skipped.
+    const key = (f.field_key ?? f.fieldKey) as string;
+    if (f.value === null || f.value === undefined || f.value === '') continue;
+    (data as Record<string, unknown>)[key] = f.value;
   }
 
-  console.log(`[score] Building score from ${Object.keys(data).length} confirmed fields`);
+  console.log(`[score] Building score from ${Object.keys(data).length} fields`);
 
   const scoreResult = calculateESGScore({
     data,

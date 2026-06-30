@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { supabase } from '../lib/supabase';
+import { api } from '../lib/api';
+import type { Company } from '../lib/types';
 
 const NAV = [
   { to: '/upload', label: 'Documents' },
@@ -13,8 +15,17 @@ const NAV = [
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { user, company } = useApp();
+  const { user, company, setCompany } = useApp();
   const location = useLocation();
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    api.companies.listByUser(user.id)
+      .then((list) => setCompanies(list as Company[]))
+      .catch(console.error);
+  }, [user, company]);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -42,7 +53,42 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         )}
         <div className="flex items-center gap-3">
           {company && (
-            <span className="text-sm text-moss-light hidden sm:block">{company.name}</span>
+            <div className="relative">
+              <button
+                onClick={() => setSwitcherOpen(!switcherOpen)}
+                className="text-sm text-moss-light hover:text-white flex items-center gap-1 transition-colors"
+              >
+                <span className="hidden sm:block max-w-[160px] truncate">{company.name}</span>
+                <span className="text-xs">▾</span>
+              </button>
+              {switcherOpen && (
+                <div className="absolute right-0 top-full mt-2 w-64 bg-white-warm rounded-lg shadow-lg border border-sand z-50 py-1 max-h-80 overflow-y-auto">
+                  <div className="px-3 py-2 text-xs text-taupe border-b border-sand">Switch company</div>
+                  {companies.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => {
+                        setCompany(c);
+                        setSwitcherOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-moss-light/40 transition-colors ${
+                        c.id === company.id ? 'text-forest font-medium bg-moss-light/30' : 'text-bark-brown'
+                      }`}
+                    >
+                      <div className="truncate">{c.name}</div>
+                      <div className="text-xs text-taupe">{c.industry?.replace(/_/g, ' ')} · {c.size}</div>
+                    </button>
+                  ))}
+                  <Link
+                    to="/setup"
+                    onClick={() => setSwitcherOpen(false)}
+                    className="block px-3 py-2 text-sm text-slate-blue hover:bg-moss-light/40 border-t border-sand"
+                  >
+                    + New company
+                  </Link>
+                </div>
+              )}
+            </div>
           )}
           {user ? (
             <button
