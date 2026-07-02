@@ -1,8 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { api } from '../lib/api';
+import { useApp } from '../context/AppContext';
+import type { Company } from '../lib/types';
 
 export default function Auth() {
+  const { setCompany } = useApp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [mode, setMode] = useState<'sign_in' | 'sign_up'>('sign_in');
@@ -21,9 +25,23 @@ export default function Auth() {
       if (error) setError(error.message);
       else setMessage('Check your email to confirm your account.');
     } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setError(error.message);
-      else navigate('/setup');
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        setError(error.message);
+      } else {
+        // Resume the most recent company instead of creating a duplicate via /setup
+        try {
+          const companies = await api.companies.listByUser(data.user.id) as Company[];
+          if (companies.length > 0) {
+            setCompany(companies[0]);
+            navigate('/upload');
+          } else {
+            navigate('/setup');
+          }
+        } catch {
+          navigate('/setup');
+        }
+      }
     }
     setLoading(false);
   };
