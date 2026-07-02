@@ -92,6 +92,9 @@ export function calculateESGScore(ctx: ScoringContext): ESGScoreResult {
       const raw = normalize(val as number, avg, m.lowerIsBetter);
       const weight = getFieldWeight(m.key, extractedFields);
       sScore += raw * m.weight * weight + (raw * m.weight * (1 - weight) * 0.25);
+    } else {
+      // Value present but no benchmark — score neutral instead of silently dropping the weight
+      sScore += 50 * m.weight;
     }
     sWeightTotal += m.weight;
   }
@@ -118,13 +121,17 @@ export function calculateESGScore(ctx: ScoringContext): ESGScoreResult {
 
   const overall = eScore * 0.4 + sScore * 0.35 + gScore * 0.25;
 
-  const documentVerifiedCount = extractedFields.filter(
-    (f) => f.source === 'document_parsed' && f.userConfirmed
-  ).length;
+  // PRD: dataQualityScore = % of fields that are document_parsed vs self_reported.
+  // Confirmed doc-parsed fields count at full weight, unconfirmed at 0.8 (still traceable to a source).
+  const dqNumerator = extractedFields.reduce((sum, f) => {
+    if (f.source !== 'document_parsed') return sum;
+    return sum + (f.userConfirmed ? 1 : 0.8);
+  }, 0);
   const totalFields = extractedFields.length || 1;
-  const dataQualityScore = Math.round((documentVerifiedCount / totalFields) * 100);
+  const dataQualityScore = Math.round((dqNumerator / totalFields) * 100);
 
-  const percentileRank = Math.round(clamp(overall - 10 + Math.random() * 20, 5, 95));
+  // Deterministic estimate: overall score maps directly to a peer percentile band
+  const percentileRank = Math.round(clamp(overall, 5, 95));
 
   return {
     overall: Math.round(overall),
