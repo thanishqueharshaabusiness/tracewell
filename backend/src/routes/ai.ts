@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { callClaude } from '../services/claude';
 import { supabase } from '../services/supabase';
-import { calculateESGScore } from '../services/scoring';
+import { calculateESGScore, normalizeUnit } from '../services/scoring';
 import { getLatestSessionDocumentIds, getLatestSessionId } from '../services/session';
 import { ESGInputData, ExtractedField } from '../types';
 
@@ -73,7 +73,10 @@ router.post('/score', async (req: Request, res: Response) => {
     // (scoring.ts down-weights unconfirmed fields to 0.7). Only truly empty values are skipped.
     const key = (f.field_key ?? f.fieldKey) as string;
     if (f.value === null || f.value === undefined || f.value === '') continue;
-    (data as Record<string, unknown>)[key] = f.value;
+    const value = typeof f.value === 'number'
+      ? normalizeUnit(key, f.value, (f as unknown as { unit: string | null }).unit)
+      : f.value;
+    (data as Record<string, unknown>)[key] = value;
   }
 
   console.log(`[score] Building score from ${Object.keys(data).length} fields`);

@@ -12,6 +12,39 @@ function normalize(userValue: number, avgValue: number, lowerIsBetter = false): 
   return clamp((userValue / avgValue) * 50, 0, 100);
 }
 
+/**
+ * Converts extracted values into the units the benchmarks use
+ * (MWh for energy, m³ for water, tonnes for waste/emissions).
+ * Documents often state kWh / litres / kg — without this, a kWh reading
+ * is compared against an MWh benchmark and destroys the E score.
+ */
+export function normalizeUnit(fieldKey: string, value: number, unit: string | null): number {
+  if (!unit || typeof value !== 'number') return value;
+  const u = unit.toLowerCase().replace(/\s/g, '');
+
+  switch (fieldKey) {
+    case 'energyConsumption':
+      if (u === 'kwh') return value / 1000;       // → MWh
+      if (u === 'gwh') return value * 1000;       // → MWh
+      return value;                                // MWh assumed
+    case 'waterUse':
+      if (u === 'l' || u === 'liters' || u === 'litres') return value / 1000; // → m³
+      if (u === 'kl' || u === 'kiloliters' || u === 'kilolitres') return value; // 1 kL = 1 m³
+      if (u === 'gallons' || u === 'gal') return value * 0.003785;             // → m³
+      return value;                                // m³ assumed
+    case 'wasteGenerated':
+      if (u === 'kg') return value / 1000;         // → tonnes
+      if (u === 'lbs' || u === 'pounds') return value / 2204.6;
+      return value;                                // tonnes assumed
+    case 'scope1Emissions':
+    case 'scope2Emissions':
+      if (u === 'kgco2e' || u === 'kgco2') return value / 1000; // → tCO2e
+      return value;                                // tCO2e assumed
+    default:
+      return value;
+  }
+}
+
 interface ScoringContext {
   data: Partial<ESGInputData>;
   extractedFields: ExtractedField[];
