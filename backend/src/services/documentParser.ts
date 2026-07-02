@@ -122,32 +122,59 @@ export async function parseDocument(
   return parsed.extractedFields || [];
 }
 
+/**
+ * Compares new fields against existing fields from OTHER documents in the SAME
+ * upload session. On >5% variance, flags the existing field in the DB and returns
+ * the set of conflicting fieldKeys so the caller can flag the new fields on insert.
+ * Per PRD: both sides of a discrepancy get flagged; never silently overwrite.
+ */
 export async function detectDiscrepancies(
   companyId: string,
   newFields: RawExtractedField[],
   documentId: string
-): Promise<void> {
+): Promise<Set<string>> {
+  const conflicted = new Set<string>();
+
+  // Limit comparison to documents in the same session as this document
+  const { data: thisDoc } = await supabase
+    .from('documents')
+    .select('test_session_id')
+    .eq('id', documentId)
+    .single();
+
+  let sessionDocIds: string[] = [];
+  if (thisDoc?.test_session_id) {
+    const { data: sessionDocs } = await supabase
+      .from('documents')
+      .select('id')
+      .eq('company_id', companyId)
+      .eq('test_session_id', thisDoc.test_session_id)
+      .neq('id', documentId);
+    sessionDocIds = (sessionDocs || []).map((d) => d.id);
+  }
+  if (sessionDocIds.length === 0) return conflicted;
+
   for (const field of newFields) {
     const { data: existing } = await supabase
       .from('extracted_fields')
       .select('*')
       .eq('company_id', companyId)
       .eq('field_key', field.fieldKey)
-      .neq('document_id', documentId);
+      .in('document_id', sessionDocIds);
 
     if (!existing || existing.length === 0) continue;
 
     for (const existingField of existing) {
       const existingVal = typeof existingField.value === 'object'
-        ? existingField.value.v
+        ? Number(existingField.value.v)
         : Number(existingField.value);
       const newVal = Number(field.value);
 
       if (isNaN(existingVal) || isNaN(newVal)) continue;
 
-      const variance = Math.abs(existingVal - newVal) / Math.max(existingVal, newVal);
+      const variance = Math.abs(existingVal - newVal) / Math.max(Math.abs(existingVal), Math.abs(newVal), 1e-9);
       if (variance > 0.05) {
-        // Flag the existing field
+        conflicted.add(field.fieldKey);
         await supabase
           .from('extracted_fields')
           .update({ flagged_discrepancy: true })
@@ -155,4 +182,6 @@ export async function detectDiscrepancies(
       }
     }
   }
+
+  return conflicted;
 }

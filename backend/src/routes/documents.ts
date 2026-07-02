@@ -20,7 +20,8 @@ async function runParse(filePath: string, fileType: string, docId: string, compa
     console.log(`[parse] Claude extracted ${fields.length} fields for doc ${docId}`);
 
     if (fields.length > 0) {
-      await detectDiscrepancies(companyId, fields, docId);
+      // Flags conflicting existing fields; returns fieldKeys so new fields get flagged too
+      const conflicted = await detectDiscrepancies(companyId, fields, docId);
 
       const toInsert = fields.map((f) => ({
         document_id: docId,
@@ -33,7 +34,7 @@ async function runParse(filePath: string, fileType: string, docId: string, compa
         confidence: f.confidence,
         source: 'document_parsed',
         user_confirmed: false,
-        flagged_discrepancy: false,
+        flagged_discrepancy: conflicted.has(f.fieldKey),
       }));
 
       const { error } = await supabase.from('extracted_fields').insert(toInsert);
